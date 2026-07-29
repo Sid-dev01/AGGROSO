@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ThemeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model UploadBatch {
+  id           String @id @default(cuid())
+  fileName     String
+  totalRecords Int
+
+  uploadedAt DateTime @default(now())
+
+  feedbacks Feedback[]
+  themes    Theme[]
+  reports   Report[]
+}
+
+model Feedback {
+  id String @id @default(cuid())
+
+  feedbackText String
+  source       String
+  userType     String
+  productArea  String
+  feedbackDate DateTime
+  rating       Int?
+
+  batchId String
+  batch   UploadBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  themes ThemeFeedback[]
+
+  createdAt DateTime @default(now())
+
+  @@index([batchId])
+  @@index([productArea])
+  @@index([feedbackDate])
+}
+
+model Theme {
+  id String @id @default(cuid())
+
+  title            String
+  problemStatement String
+
+  status ThemeStatus @default(PENDING)
+
+  aiConfidence Float?
+
+  batchId String
+  batch   UploadBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  feedbacks ThemeFeedback[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([batchId])
+}
+
+model ThemeFeedback {
+  id String @id @default(cuid())
+
+  themeId    String
+  feedbackId String
+
+  theme    Theme    @relation(fields: [themeId], references: [id], onDelete: Cascade)
+  feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@unique([themeId, feedbackId])
+  @@index([themeId])
+  @@index([feedbackId])
+}
+
+model Report {
+  id String @id @default(cuid())
+
+  batchId String
+  batch   UploadBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  report Json
+
+  createdAt DateTime @default(now())
+
+  @@index([batchId])
+}
+
+model KnowledgeBase {
+  id String @id @default(cuid())
+
+  title   String
+  content String
+
+  createdAt DateTime @default(now())
+}
