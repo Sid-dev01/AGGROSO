@@ -1,4 +1,7 @@
 import fastify from 'fastify';
+import prisma from './config/prisma.js'
+import multipart from '@fastify/multipart';
+import routes from './routes/index.js';
 
 
 const app = fastify({
@@ -9,11 +12,35 @@ const app = fastify({
     },
 })
 
-app.get("/health", async () => {
-    return {
-        success: true,
-        message: "Backend is running",
+await app.register(multipart, {
+    limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 1,
     }
 })
+
+app.get("/health", async (request, reply) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+
+        return {
+            success: true,
+            message: "Backend is running",
+            database: "connected",
+        }
+    } catch (error) {
+        app.log.error(error);
+
+        reply.status(500);
+
+        return {
+            success: false,
+            message: "Database Connection failed",
+            database: "disconnected",
+        }
+    }
+})
+
+await app.register(routes);
 
 export default app;
