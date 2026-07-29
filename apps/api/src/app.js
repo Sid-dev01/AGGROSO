@@ -1,7 +1,8 @@
 import fastify from 'fastify';
-import prisma from './config/prisma.js'
-import multipart from '@fastify/multipart';
 import routes from './routes/index.js';
+import prisma from './config/prisma.js';
+import multipart from '@fastify/multipart';
+import errorHandler from './middlewares/errorHandler.js';
 
 
 const app = fastify({
@@ -42,5 +43,7 @@ app.get("/health", async (request, reply) => {
 })
 
 await app.register(routes);
+
+app.setErrorHandler(errorHandler);
 
 export default app;
