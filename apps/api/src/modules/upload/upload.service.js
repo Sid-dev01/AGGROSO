@@ -1,9 +1,7 @@
 import prisma from "../../config/prisma.js";
 import { parse } from "csv-parse/sync";
-import {
-  createUploadBatch,
-  createFeedbacks,
-} from "./upload.repository.js";
+import { createUploadBatch, createFeedbacks } from "./upload.repository.js";
+import { feedbackRowSchema } from "./upload.schema.js";
 
 export const uploadFeedbackService = async (file) => {
   if (!file) {
@@ -18,28 +16,33 @@ export const uploadFeedbackService = async (file) => {
     trim: true,
   });
 
+  const validatedRecords = feedbackRowSchema.array().parse(records);
+
+  if (validatedRecords.length === 0) {
+    throw new Error("CSV file contains no records.");
+  }
+
   return prisma.$transaction(async (tx) => {
     const batch = await createUploadBatch(tx, {
       fileName: file.filename,
-      totalRecords: records.length,
+      totalRecords: validatedRecords.length,
     });
 
-    await createFeedbacks(
-      tx,
-      records.map((record) => ({
-        feedbackText: record.feedbackText,
-        source: record.source,
-        userType: record.userType,
-        productArea: record.productArea,
-        feedbackDate: new Date(record.feedbackDate),
-        rating: record.rating ? Number(record.rating) : null,
-        batchId: batch.id,
-      }))
-    );
+    const feedbackData = validatedRecords.map((record) => ({
+      feedbackText: record.feedbackText,
+      source: record.source,
+      userType: record.userType,
+      productArea: record.productArea,
+      feedbackDate: record.feedbackDate,
+      rating: record.rating ?? null,
+      batchId: batch.id,
+    }));
+
+    await createFeedbacks(tx, feedbackData);
 
     return {
       batchId: batch.id,
-      totalRecords: records.length,
+      totalRecords: validatedRecords.length,
     };
   });
 };
