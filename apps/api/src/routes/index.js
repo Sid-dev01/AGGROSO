@@ -1,4 +1,4 @@
-import uploadRoutes from "../modules/upload/upload.route";
+import uploadRoutes from "../modules/upload/upload.route.js";
 
 
 async function routes(app) {
