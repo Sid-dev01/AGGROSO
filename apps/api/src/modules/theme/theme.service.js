@@ -7,6 +7,8 @@ import {
   getAllThemes,
   createTheme,
   createThemeFeedbacks,
+  getThemesForBatch,
+  updateTheme,
 } from "./theme.repository.js";
 
 export const generateThemesService = async (batchId) => {
@@ -85,4 +87,27 @@ export const generateThemesService = async (batchId) => {
       themes: aiResponse.themes,
     };
   });
+};
+
+export const getThemesForBatchService = async (batchId) => {
+  const themes = await getThemesForBatch(prisma, batchId);
+
+  return themes.map(({ _count, ...theme }) => ({
+    ...theme,
+    feedbackCount: _count.feedbacks,
+  }));
+};
+
+export const updateThemeService = async (themeId, updates) => {
+  try {
+    return await updateTheme(prisma, themeId, updates);
+  } catch (error) {
+    if (error?.code === "P2025") {
+      const notFoundError = new Error("Theme not found.");
+      notFoundError.statusCode = 404;
+      throw notFoundError;
+    }
+
+    throw error;
+  }
 };
