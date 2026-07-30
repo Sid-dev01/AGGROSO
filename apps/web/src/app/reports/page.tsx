@@ -9,6 +9,7 @@ import {
   FileText,
   Lightbulb,
   ListChecks,
+  LoaderCircle,
   Search,
   Sparkles,
   Target,
@@ -35,6 +36,12 @@ import {
 import { useWorkspace } from "@/hooks/use-workspace";
 import { getApiErrorMessage } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import {
+  getUploadDateLabel,
+  getUploadLabel,
+  matchesUploadSearch,
+  resolveUploadSearch,
+} from "@/lib/uploads";
 import type {
   ManagementReport,
   ReportPriority,
@@ -42,7 +49,7 @@ import type {
 } from "@/types/api";
 
 type ReportForm = {
-  batchId: string;
+  searchId: string;
 };
 
 export default function ReportsPage() {
@@ -56,28 +63,46 @@ export default function ReportsPage() {
 function ReportsContent() {
   const searchParams = useSearchParams();
   const batchIdFromUrl = searchParams.get("batchId") ?? "";
-  const { activeBatchId, addReport, setActiveBatchId } = useWorkspace();
+  const { activeBatchId, addReport, setActiveBatchId, uploads } = useWorkspace();
   const [batchId, setBatchId] = React.useState(batchIdFromUrl || activeBatchId);
   const { notify } = useToast();
   const reportQuery = useReport(batchId);
   const generateReportMutation = useGenerateReport();
   const form = useForm<ReportForm>({
     defaultValues: {
-      batchId,
+      searchId: batchId,
     },
   });
+  const uploadSearch = form.watch("searchId") ?? "";
+  const selectedUpload = uploads.find((upload) => upload.batchId === batchId);
+  const filteredUploads = uploads
+    .filter((upload) => matchesUploadSearch(upload, uploadSearch))
+    .slice(0, 5);
 
   React.useEffect(() => {
     if (batchIdFromUrl) {
+      const upload = uploads.find((item) => item.batchId === batchIdFromUrl);
+
       setBatchId(batchIdFromUrl);
       setActiveBatchId(batchIdFromUrl);
-      form.setValue("batchId", batchIdFromUrl);
+      form.setValue(
+        "searchId",
+        upload ? getUploadLabel(upload) : batchIdFromUrl
+      );
     }
-  }, [batchIdFromUrl, form, setActiveBatchId]);
+  }, [batchIdFromUrl, form, setActiveBatchId, uploads]);
 
   const submitBatch = (values: ReportForm) => {
-    setBatchId(values.batchId);
-    setActiveBatchId(values.batchId);
+    const searchId = values.searchId.trim();
+    const upload = resolveUploadSearch(uploads, searchId);
+    const nextBatchId = upload?.batchId ?? searchId;
+
+    setBatchId(nextBatchId);
+    setActiveBatchId(nextBatchId);
+
+    if (upload) {
+      form.setValue("searchId", getUploadLabel(upload));
+    }
   };
 
   const generateBatchReport = async () => {
@@ -113,7 +138,11 @@ function ReportsContent() {
             disabled={!batchId || generateReportMutation.isPending}
             onClick={generateBatchReport}
           >
-            <Sparkles className="h-4 w-4" />
+            {generateReportMutation.isPending ? (
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
             {generateReportMutation.isPending ? "Generating" : "Generate report"}
           </Button>
         }
@@ -123,30 +152,67 @@ function ReportsContent() {
 
       <Card className="mb-6">
         <CardContent className="p-5">
-          <form
-            className="flex flex-col gap-3 md:flex-row md:items-end"
-            onSubmit={form.handleSubmit(submitBatch)}
-          >
-            <div className="flex-1">
-              <Label htmlFor="reportBatchId">Batch ID</Label>
-              <Input
-                className="mt-2"
-                id="reportBatchId"
-                placeholder="Paste an approved batch ID"
-                {...form.register("batchId", {
-                  required: "Batch ID is required.",
-                })}
-              />
-              {form.formState.errors.batchId?.message ? (
-                <p className="mt-2 text-sm text-red-600">
-                  {form.formState.errors.batchId.message}
-                </p>
-              ) : null}
+          <form className="space-y-3" onSubmit={form.handleSubmit(submitBatch)}>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div>
+                <Label htmlFor="reportSearch">Search uploads</Label>
+                <div className="relative mt-2">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <Input
+                    autoComplete="off"
+                    className="pl-9"
+                    id="reportSearch"
+                    placeholder="Search by file name, upload date, or batch ID"
+                    {...form.register("searchId", {
+                      required: "Select or enter an upload.",
+                    })}
+                  />
+                </div>
+              </div>
+              <Button className="w-full md:w-auto" type="submit">
+                <Search className="h-4 w-4" />
+                Load report
+              </Button>
             </div>
-            <Button type="submit">
-              <Search className="h-4 w-4" />
-              Load report
-            </Button>
+            {selectedUpload ? (
+              <p className="text-xs text-zinc-500">
+                Selected {selectedUpload.fileName} from{" "}
+                {getUploadDateLabel(selectedUpload)}
+              </p>
+            ) : null}
+            {uploads.length ? (
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredUploads.map((upload) => (
+                  <button
+                    className="rounded-md border border-zinc-200 px-3 py-2 text-left transition-colors duration-150 hover:border-blue-200 hover:bg-blue-50/40"
+                    key={upload.batchId}
+                    onClick={() => {
+                      setBatchId(upload.batchId);
+                      setActiveBatchId(upload.batchId);
+                      form.setValue("searchId", getUploadLabel(upload));
+                    }}
+                    type="button"
+                  >
+                    <span className="block truncate text-sm font-medium text-zinc-950">
+                      {upload.fileName}
+                    </span>
+                    <span className="mt-1 block truncate text-xs text-zinc-500">
+                      {getUploadDateLabel(upload)} -{" "}
+                      {upload.totalRecords} records
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-500">
+                Uploaded files will appear here after a successful CSV upload.
+              </p>
+            )}
+            {form.formState.errors.searchId?.message ? (
+              <p className="text-sm text-red-600">
+                {form.formState.errors.searchId.message}
+              </p>
+            ) : null}
           </form>
         </CardContent>
       </Card>
@@ -155,7 +221,7 @@ function ReportsContent() {
 
       {!batchId ? (
         <EmptyState
-          description="Paste a batch ID to retrieve its latest report or generate one from approved themes."
+          description="Search for an uploaded file or paste a batch ID to retrieve its report."
           icon={Search}
           title="Select a batch"
         />
@@ -185,8 +251,8 @@ function ReportsContent() {
               <CardHeader>
                 <CardTitle>Executive summary</CardTitle>
                 <CardDescription>
-                  Generated {formatDateTime(report.createdAt)} for batch{" "}
-                  {report.batchId}
+                  Generated {formatDateTime(report.createdAt)}
+                  {selectedUpload ? ` for ${selectedUpload.fileName}` : ""}
                 </CardDescription>
               </CardHeader>
               <CardContent>

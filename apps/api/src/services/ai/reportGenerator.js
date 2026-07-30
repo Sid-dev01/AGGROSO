@@ -1,5 +1,4 @@
-import openai from "../../config/openai.js";
-import { zodTextFormat } from "openai/helpers/zod";
+import ai from "../../config/gemini.js";
 import { reportResponseSchema } from "./reportResponseSchema.js";
 
 export const generateReportFromAI = async (approvedThemes) => {
@@ -17,6 +16,30 @@ Rules:
 5. Prioritize issues.
 6. Provide actionable recommendations.
 7. Generate an executive summary for management.
+
+Return ONLY valid JSON.
+
+Do NOT wrap the response in markdown.
+
+The response MUST exactly follow this structure:
+
+{
+  "executiveSummary": "string",
+  "overallSentiment": "Positive | Neutral | Negative",
+  "keyFindings": [
+    "string"
+  ],
+  "recommendations": [
+    "string"
+  ],
+  "priorityAreas": [
+    {
+      "theme": "string",
+      "priority": "High | Medium | Low",
+      "reason": "string"
+    }
+  ]
+}
 
 Approved Themes:
 
@@ -49,20 +72,17 @@ ${feedback.feedbackText}
 `;
 
   try {
-    const response = await openai.responses.parse({
-      model: "gpt-4.1-mini",
-
-      input: prompt,
-
-      text: {
-        format: zodTextFormat(
-          reportResponseSchema,
-          "report_generation"
-        ),
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-lite",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
       },
     });
 
-    return response.output_parsed;
+    const parsedResponse = JSON.parse(response.text);
+
+    return reportResponseSchema.parse(parsedResponse);
   } catch (error) {
     console.error("Report generation failed:", error);
 

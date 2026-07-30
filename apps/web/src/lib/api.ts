@@ -42,9 +42,6 @@ export async function uploadFeedback(
     "/upload",
     formData,
     {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
       onUploadProgress: (event) => {
         if (!event.total || !onUploadProgress) {
           return;
@@ -60,7 +57,8 @@ export async function uploadFeedback(
 
 export async function generateThemes(batchId: string) {
   const response = await api.post<ApiResponse<GenerateThemesResult>>(
-    `/themes/generate/${batchId}`
+    `/themes/generate/${batchId}`,
+    {}
   );
 
   return response.data.data;
