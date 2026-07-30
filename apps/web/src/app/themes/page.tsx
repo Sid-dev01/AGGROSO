@@ -5,7 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import {
   Check,
+  CheckCheck,
   FileText,
+  LoaderCircle,
   Pencil,
   Search,
   Sparkles,
@@ -29,17 +31,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import {
+  useApproveThemes,
   useGenerateThemes,
   useThemes,
   useUpdateTheme,
 } from "@/hooks/use-feedback-api";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { getApiErrorMessage } from "@/lib/api";
-import { formatConfidence, getStatusTone } from "@/lib/format";
+import {
+  formatConfidence,
+  getStatusTone,
+} from "@/lib/format";
+import {
+  getUploadDateLabel,
+  getUploadLabel,
+  matchesUploadSearch,
+  resolveUploadSearch,
+} from "@/lib/uploads";
 import type { Theme, ThemeStatus, ThemeUpdate } from "@/types/api";
 
 type BatchForm = {
-  batchId: string;
+  query: string;
 };
 
 type ThemeForm = {
@@ -58,16 +70,17 @@ export default function ThemeReviewPage() {
 function ThemeReviewContent() {
   const searchParams = useSearchParams();
   const batchIdFromUrl = searchParams.get("batchId") ?? "";
-  const { activeBatchId, setActiveBatchId } = useWorkspace();
+  const { activeBatchId, setActiveBatchId, uploads } = useWorkspace();
   const [batchId, setBatchId] = React.useState(batchIdFromUrl || activeBatchId);
   const [editingTheme, setEditingTheme] = React.useState<Theme | null>(null);
   const { notify } = useToast();
   const themesQuery = useThemes(batchId);
   const generateThemesMutation = useGenerateThemes();
   const updateThemeMutation = useUpdateTheme(batchId);
+  const approveThemesMutation = useApproveThemes(batchId);
   const batchForm = useForm<BatchForm>({
     defaultValues: {
-      batchId,
+      query: batchId,
     },
   });
   const themeForm = useForm<ThemeForm>({
@@ -76,14 +89,24 @@ function ThemeReviewContent() {
       problemStatement: "",
     },
   });
+  const uploadSearch = batchForm.watch("query") ?? "";
+  const selectedUpload = uploads.find((upload) => upload.batchId === batchId);
+  const filteredUploads = uploads
+    .filter((upload) => matchesUploadSearch(upload, uploadSearch))
+    .slice(0, 5);
 
   React.useEffect(() => {
     if (batchIdFromUrl) {
+      const upload = uploads.find((item) => item.batchId === batchIdFromUrl);
+
       setBatchId(batchIdFromUrl);
       setActiveBatchId(batchIdFromUrl);
-      batchForm.setValue("batchId", batchIdFromUrl);
+      batchForm.setValue(
+        "query",
+        upload ? getUploadLabel(upload) : batchIdFromUrl
+      );
     }
-  }, [batchForm, batchIdFromUrl, setActiveBatchId]);
+  }, [batchForm, batchIdFromUrl, setActiveBatchId, uploads]);
 
   React.useEffect(() => {
     if (editingTheme) {
@@ -95,8 +118,16 @@ function ThemeReviewContent() {
   }, [editingTheme, themeForm]);
 
   const submitBatch = (values: BatchForm) => {
-    setBatchId(values.batchId);
-    setActiveBatchId(values.batchId);
+    const query = values.query.trim();
+    const upload = resolveUploadSearch(uploads, query);
+    const nextBatchId = upload?.batchId ?? query;
+
+    setBatchId(nextBatchId);
+    setActiveBatchId(nextBatchId);
+
+    if (upload) {
+      batchForm.setValue("query", getUploadLabel(upload));
+    }
   };
 
   const generateThemesForBatch = async () => {
@@ -115,6 +146,32 @@ function ThemeReviewContent() {
     } catch (error) {
       notify({
         title: "Theme generation failed",
+        description: getApiErrorMessage(error),
+        tone: "error",
+      });
+    }
+  };
+
+  const approveAllThemes = async () => {
+    const themeIds = themes
+      .filter((theme) => theme.status !== "APPROVED")
+      .map((theme) => theme.id);
+
+    if (!themeIds.length) {
+      return;
+    }
+
+    try {
+      await approveThemesMutation.mutateAsync(themeIds);
+
+      notify({
+        title: "Themes approved",
+        description: `${themeIds.length} themes were approved for reporting.`,
+        tone: "success",
+      });
+    } catch (error) {
+      notify({
+        title: "Approve all failed",
         description: getApiErrorMessage(error),
         tone: "error",
       });
@@ -178,19 +235,40 @@ function ThemeReviewContent() {
     (theme) => theme.status === "APPROVED"
   ).length;
   const pendingCount = themes.filter((theme) => theme.status === "PENDING").length;
+  const unapprovedCount = themes.length - approvedCount;
+  const reviewActionPending =
+    updateThemeMutation.isPending || approveThemesMutation.isPending;
 
   return (
     <div>
       <PageHeading
         actions={
-          <Button
-            disabled={!batchId || generateThemesMutation.isPending}
-            onClick={generateThemesForBatch}
-            variant="secondary"
-          >
-            <Sparkles className="h-4 w-4" />
-            {generateThemesMutation.isPending ? "Generating" : "Generate themes"}
-          </Button>
+          <>
+            <Button
+              disabled={!unapprovedCount || reviewActionPending}
+              onClick={approveAllThemes}
+              variant="secondary"
+            >
+              {approveThemesMutation.isPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCheck className="h-4 w-4" />
+              )}
+              Approve all
+            </Button>
+            <Button
+              disabled={!batchId || generateThemesMutation.isPending}
+              onClick={generateThemesForBatch}
+              variant="secondary"
+            >
+              {generateThemesMutation.isPending ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {generateThemesMutation.isPending ? "Generating" : "Generate themes"}
+            </Button>
+          </>
         }
         description="Review AI-generated themes before they are used in management reports."
         title="Theme Review"
@@ -198,33 +276,76 @@ function ThemeReviewContent() {
 
       <Card className="mb-6">
         <CardContent className="p-5">
-          <form
-            className="flex flex-col gap-3 md:flex-row md:items-end"
-            onSubmit={batchForm.handleSubmit(submitBatch)}
-          >
-            <div className="flex-1">
-              <Label htmlFor="batchId">Batch ID</Label>
-              <Input
-                className="mt-2"
-                id="batchId"
-                placeholder="Paste a batch ID from your upload"
-                {...batchForm.register("batchId", {
-                  required: "Batch ID is required.",
-                })}
-              />
-              {batchForm.formState.errors.batchId?.message ? (
-                <p className="mt-2 text-sm text-red-600">
-                  {batchForm.formState.errors.batchId.message}
-                </p>
-              ) : null}
+          <form className="space-y-3" onSubmit={batchForm.handleSubmit(submitBatch)}>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div>
+                <Label htmlFor="uploadSearch">Search uploads</Label>
+                <div className="relative mt-2">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <Input
+                    autoComplete="off"
+                    className="pl-9"
+                    id="uploadSearch"
+                    placeholder="Search by file name, upload date, or batch ID"
+                    {...batchForm.register("query", {
+                      required: "Select or enter an upload.",
+                    })}
+                  />
+                </div>
+              </div>
+              <Button
+                className="w-full md:w-auto"
+                disabled={generateThemesMutation.isPending}
+                type="submit"
+              >
+                <Search className="h-4 w-4" />
+                Load themes
+              </Button>
             </div>
-            <Button className="md:w-auto" type="submit">
-              <Search className="h-4 w-4" />
-              Load themes
-            </Button>
+            {selectedUpload ? (
+              <p className="text-xs text-zinc-500">
+                Selected {selectedUpload.fileName} from{" "}
+                {getUploadDateLabel(selectedUpload)}
+              </p>
+            ) : null}
+            {uploads.length ? (
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredUploads.map((upload) => (
+                  <button
+                    className="rounded-md border border-zinc-200 px-3 py-2 text-left transition-colors duration-150 hover:border-blue-200 hover:bg-blue-50/40"
+                    key={upload.batchId}
+                    onClick={() => {
+                      setBatchId(upload.batchId);
+                      setActiveBatchId(upload.batchId);
+                      batchForm.setValue("query", getUploadLabel(upload));
+                    }}
+                    type="button"
+                  >
+                    <span className="block truncate text-sm font-medium text-zinc-950">
+                      {upload.fileName}
+                    </span>
+                    <span className="mt-1 block truncate text-xs text-zinc-500">
+                      {getUploadDateLabel(upload)} -{" "}
+                      {upload.totalRecords} records
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-500">
+                Uploaded files will appear here after a successful CSV upload.
+              </p>
+            )}
+            {batchForm.formState.errors.query?.message ? (
+              <p className="text-sm text-red-600">
+                {batchForm.formState.errors.query.message}
+              </p>
+            ) : null}
           </form>
         </CardContent>
       </Card>
+
+      {generateThemesMutation.isPending ? <GeneratingThemesState /> : null}
 
       <section className="mb-6 grid gap-4 sm:grid-cols-3">
         <ReviewMetric label="Total themes" value={String(themes.length)} />
@@ -246,7 +367,10 @@ function ThemeReviewContent() {
         </div>
       ) : null}
 
-      {!themesQuery.isLoading && batchId && themes.length === 0 ? (
+      {!themesQuery.isLoading &&
+      !generateThemesMutation.isPending &&
+      batchId &&
+      themes.length === 0 ? (
         <EmptyState
           action={
             <Button
@@ -265,7 +389,7 @@ function ThemeReviewContent() {
 
       {!batchId ? (
         <EmptyState
-          description="Paste a batch ID from a completed upload to load generated themes."
+          description="Search for an uploaded file or paste a batch ID to load generated themes."
           icon={Search}
           title="Select a batch"
         />
@@ -275,7 +399,7 @@ function ThemeReviewContent() {
         <div className="grid gap-4 lg:grid-cols-2">
           {themes.map((theme) => (
             <ThemeCard
-              disabled={updateThemeMutation.isPending}
+              disabled={reviewActionPending}
               key={theme.id}
               onEdit={() => setEditingTheme(theme)}
               onReview={reviewTheme}
@@ -351,6 +475,31 @@ function ThemeReviewContent() {
         </form>
       </Dialog>
     </div>
+  );
+}
+
+function GeneratingThemesState() {
+  return (
+    <Card className="mb-6 border-blue-200 bg-blue-50/50">
+      <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
+          <span className="absolute h-12 w-12 rounded-md bg-blue-200 opacity-60 animate-ping" />
+          <div className="relative flex h-12 w-12 items-center justify-center rounded-md border border-blue-200 bg-white text-blue-600 shadow-sm">
+            <Sparkles className="h-5 w-5 animate-pulse" />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-zinc-950">
+            Generating themes
+          </p>
+          <p className="mt-1 text-sm leading-6 text-zinc-600">
+            Reviewing feedback, grouping related pain points, and preparing the
+            theme list for review.
+          </p>
+        </div>
+        <LoaderCircle className="h-5 w-5 animate-spin text-blue-600" />
+      </CardContent>
+    </Card>
   );
 }
 

@@ -59,6 +59,28 @@ export function useUpdateTheme(batchId?: string) {
   });
 }
 
+export function useApproveThemes(batchId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (themeIds: string[]) =>
+      Promise.all(
+        themeIds.map((themeId) =>
+          updateTheme(themeId, {
+            status: "APPROVED",
+          })
+        )
+      ),
+    onSuccess: () => {
+      if (batchId) {
+        queryClient.invalidateQueries({
+          queryKey: ["themes", batchId],
+        });
+      }
+    },
+  });
+}
+
 export function useReport(batchId?: string) {
   return useQuery({
     queryKey: ["report", batchId],

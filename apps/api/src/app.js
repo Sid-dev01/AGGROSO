@@ -1,4 +1,5 @@
 import fastify from 'fastify';
+import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import routes from './routes/index.js';
@@ -14,6 +15,13 @@ const app = fastify({
         },
     },
 })
+
+await app.register(cors, {
+    origin: process.env.CORS_ORIGIN
+        ? process.env.CORS_ORIGIN.split(",")
+        : ["http://localhost:3000"],
+    methods: ["GET", "POST", "PATCH", "OPTIONS"],
+});
 
 await app.register(multipart, {
     limits: {

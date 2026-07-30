@@ -38,7 +38,14 @@ export function useWorkspace() {
 
     if (value) {
       try {
-        setState(JSON.parse(value));
+        const storedState = JSON.parse(value) as WorkspaceState;
+
+        setState({
+          ...defaultState,
+          ...storedState,
+          uploads: storedState.uploads ?? [],
+          reports: storedState.reports ?? [],
+        });
       } catch {
         window.localStorage.removeItem(storageKey);
       }
@@ -71,7 +78,7 @@ export function useWorkspace() {
             uploadedAt: new Date().toISOString(),
           },
           ...current.uploads.filter((item) => item.batchId !== upload.batchId),
-        ].slice(0, 8),
+        ].slice(0, 50),
       }));
     },
     []

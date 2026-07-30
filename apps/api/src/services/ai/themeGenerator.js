@@ -1,6 +1,5 @@
-import openai from "../../config/openai.js";
-import { zodTextFormat } from "openai/helpers/zod";
-import { aiThemeResponseSchema } from "./themeResponseSchema.js";
+import ai from "../../config/gemini.js";
+import { aiThemeResponseSchema } from "../../modules/theme/theme.schema.js";
 
 export const generateThemesFromAI = async (
   feedbacks,
@@ -32,6 +31,23 @@ Rules:
 5. Problem statements should clearly summarize the issue.
 6. Confidence must be between 0 and 1.
 
+Return ONLY valid JSON.
+
+Do NOT wrap the response in markdown.
+
+The response MUST exactly follow this structure:
+
+{
+  "themes": [
+    {
+      "title": "string",
+      "problemStatement": "string",
+      "confidence": 0.95,
+      "feedbackIds": ["id1", "id2"]
+    }
+  ]
+}
+
 Feedback:
 
 ${feedbacks
@@ -52,20 +68,17 @@ ${feedback.feedbackText}
 `;
 
   try {
-    const response = await openai.responses.parse({
-      model: "gpt-4.1-mini",
-
-      input: prompt,
-
-      text: {
-        format: zodTextFormat(
-          aiThemeResponseSchema,
-          "theme_generation"
-        ),
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-lite",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
       },
     });
 
-    return response.output_parsed;
+    const parsedResponse = JSON.parse(response.text);
+
+    return aiThemeResponseSchema.parse(parsedResponse);
   } catch (error) {
     console.error("Theme generation failed:", error);
 

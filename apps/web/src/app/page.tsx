@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -8,6 +9,7 @@ import {
   FileText,
   FolderOpen,
   Layers3,
+  Search,
   Upload,
 } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -22,6 +24,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -31,14 +34,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
+import { getUploadDateLabel, matchesUploadSearch } from "@/lib/uploads";
 import { useWorkspace } from "@/hooks/use-workspace";
 
 export default function DashboardPage() {
   const { activeBatchId, reports, uploads } = useWorkspace();
+  const [uploadSearch, setUploadSearch] = React.useState("");
+  const [appliedUploadSearch, setAppliedUploadSearch] = React.useState("");
   const totalFeedback = uploads.reduce(
     (sum, upload) => sum + upload.totalRecords,
     0
   );
+  const visibleUploads = appliedUploadSearch
+    ? uploads.filter((upload) => matchesUploadSearch(upload, appliedUploadSearch))
+    : uploads.slice(0, 10);
 
   return (
     <div>
@@ -87,45 +96,73 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle>Recent uploads</CardTitle>
             <CardDescription>
-              Upload history is stored locally because the backend exposes
-              upload creation, not a list endpoint.
+              The latest feedback files ready for theme review and reporting.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {uploads.length ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>File</TableHead>
-                    <TableHead>Batch</TableHead>
-                    <TableHead>Records</TableHead>
-                    <TableHead>Uploaded</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {uploads.map((upload) => (
-                    <TableRow key={upload.batchId}>
-                      <TableCell className="font-medium text-zinc-950">
-                        {upload.fileName}
-                      </TableCell>
-                      <TableCell className="max-w-48 truncate text-zinc-500">
-                        {upload.batchId}
-                      </TableCell>
-                      <TableCell>{upload.totalRecords}</TableCell>
-                      <TableCell>{formatDateTime(upload.uploadedAt)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button asChild size="sm" variant="secondary">
-                          <Link href={`/themes?batchId=${upload.batchId}`}>
-                            Review
-                            <ArrowRight className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="space-y-4">
+                <form
+                  className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setAppliedUploadSearch(uploadSearch);
+                  }}
+                >
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <Input
+                      className="pl-9"
+                      onChange={(event) => setUploadSearch(event.target.value)}
+                      placeholder="Search uploaded files"
+                      value={uploadSearch}
+                    />
+                  </div>
+                  <Button className="w-full sm:w-auto" type="submit">
+                    <Search className="h-4 w-4" />
+                    Search
+                  </Button>
+                </form>
+
+                {visibleUploads.length ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>File</TableHead>
+                        <TableHead>Records</TableHead>
+                        <TableHead>Uploaded</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visibleUploads.map((upload) => (
+                        <TableRow key={upload.batchId}>
+                          <TableCell className="font-medium text-zinc-950">
+                            {upload.fileName}
+                          </TableCell>
+                          <TableCell>{upload.totalRecords}</TableCell>
+                          <TableCell>{getUploadDateLabel(upload)}</TableCell>
+                          <TableCell className="text-right">
+                            <Button asChild size="sm" variant="secondary">
+                              <Link href={`/themes?batchId=${upload.batchId}`}>
+                                Review
+                                <ArrowRight className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <EmptyState
+                    className="min-h-48"
+                    description="No uploaded files match your search."
+                    icon={Search}
+                    title="No uploads found"
+                  />
+                )}
+              </div>
             ) : (
               <EmptyState
                 action={
@@ -191,7 +228,8 @@ export default function DashboardPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-zinc-950">
-                            Batch {report.batchId}
+                            {uploads.find((upload) => upload.batchId === report.batchId)
+                              ?.fileName ?? "Generated report"}
                           </p>
                           <p className="mt-1 text-xs text-zinc-500">
                             {formatDateTime(report.createdAt)}
