@@ -1,103 +1,249 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  FileText,
+  FolderOpen,
+  Layers3,
+  Upload,
+} from "lucide-react";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { PageHeading } from "@/components/layout/page-heading";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { formatDateTime } from "@/lib/format";
+import { useWorkspace } from "@/hooks/use-workspace";
+
+export default function DashboardPage() {
+  const { activeBatchId, reports, uploads } = useWorkspace();
+  const totalFeedback = uploads.reduce(
+    (sum, upload) => sum + upload.totalRecords,
+    0
+  );
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div>
+      <PageHeading
+        actions={
+          <Button asChild>
+            <Link href="/upload">
+              <Upload className="h-4 w-4" />
+              Upload CSV
+            </Link>
+          </Button>
+        }
+        description="Monitor the customer feedback pipeline from upload through theme review and management reporting."
+        title="Dashboard"
+      />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          detail="CSV batches captured in this browser"
+          icon={FolderOpen}
+          label="Recent uploads"
+          value={String(uploads.length)}
+        />
+        <StatCard
+          detail="Rows processed from uploaded CSV files"
+          icon={Layers3}
+          label="Feedback records"
+          value={String(totalFeedback)}
+        />
+        <StatCard
+          detail={activeBatchId ? "Ready for review or reporting" : "Upload a CSV to begin"}
+          icon={BarChart3}
+          label="Active batch"
+          value={activeBatchId ? "Selected" : "None"}
+        />
+        <StatCard
+          detail="Reports generated from approved themes"
+          icon={FileText}
+          label="Reports"
+          value={String(reports.length)}
+        />
+      </section>
+
+      <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent uploads</CardTitle>
+            <CardDescription>
+              Upload history is stored locally because the backend exposes
+              upload creation, not a list endpoint.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {uploads.length ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>File</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Records</TableHead>
+                    <TableHead>Uploaded</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {uploads.map((upload) => (
+                    <TableRow key={upload.batchId}>
+                      <TableCell className="font-medium text-zinc-950">
+                        {upload.fileName}
+                      </TableCell>
+                      <TableCell className="max-w-48 truncate text-zinc-500">
+                        {upload.batchId}
+                      </TableCell>
+                      <TableCell>{upload.totalRecords}</TableCell>
+                      <TableCell>{formatDateTime(upload.uploadedAt)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" variant="secondary">
+                          <Link href={`/themes?batchId=${upload.batchId}`}>
+                            Review
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <EmptyState
+                action={
+                  <Button asChild>
+                    <Link href="/upload">
+                      <Upload className="h-4 w-4" />
+                      Upload CSV
+                    </Link>
+                  </Button>
+                }
+                description="Upload a customer feedback CSV to create a batch and begin theme generation."
+                icon={Upload}
+                title="No uploads yet"
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick actions</CardTitle>
+              <CardDescription>
+                Continue the workflow from the current batch.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <QuickAction
+                description="Store a fresh CSV feedback batch."
+                href="/upload"
+                icon={Upload}
+                label="Upload feedback"
+              />
+              <QuickAction
+                description="Approve, reject, or edit generated themes."
+                href={activeBatchId ? `/themes?batchId=${activeBatchId}` : "/themes"}
+                icon={BarChart3}
+                label="Review themes"
+              />
+              <QuickAction
+                description="Create a management report from approved themes."
+                href={activeBatchId ? `/reports?batchId=${activeBatchId}` : "/reports"}
+                icon={FileText}
+                label="Generate report"
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Reports</CardTitle>
+              <CardDescription>Latest generated reports in this workspace.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reports.length ? (
+                <div className="space-y-3">
+                  {reports.map((report) => (
+                    <Link
+                      className="block rounded-md border border-zinc-200 p-3 transition-colors duration-150 hover:bg-zinc-50"
+                      href={`/reports?batchId=${report.batchId}`}
+                      key={report.id}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-zinc-950">
+                            Batch {report.batchId}
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {formatDateTime(report.createdAt)}
+                          </p>
+                        </div>
+                        <Badge variant="blue">{report.sentiment}</Badge>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  className="min-h-48"
+                  description="Generate a report after at least one theme has been approved."
+                  icon={FileText}
+                  title="No reports yet"
+                />
+              )}
+            </CardContent>
+          </Card>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </section>
     </div>
+  );
+}
+
+function QuickAction({
+  description,
+  href,
+  icon: Icon,
+  label,
+}: {
+  description: string;
+  href: string;
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <Link
+      className="flex items-center gap-3 rounded-md border border-zinc-200 p-3 transition-colors duration-150 hover:bg-zinc-50"
+      href={href}
+    >
+      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-zinc-100 text-zinc-600">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-zinc-950">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-zinc-500">
+          {description}
+        </p>
+      </div>
+      <ArrowRight className="h-4 w-4 text-zinc-400" />
+    </Link>
   );
 }
