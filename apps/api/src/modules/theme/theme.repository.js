@@ -64,12 +64,42 @@ export const getThemesForBatch = async (db, batchId) => {
         },
       },
     },
-    include: {
-      feedbacks: {
-        include: {
-          feedback: true,
+    select: {
+      id: true,
+      title: true,
+      problemStatement: true,
+      status: true,
+      aiConfidence: true,
+      _count: {
+        select: {
+          feedbacks: {
+            where: {
+              feedback: {
+                batchId,
+              },
+            },
+          },
         },
       },
+    },
+    orderBy: {
+      title: "asc",
+    },
+  });
+};
+
+export const updateTheme = async (db, themeId, data) => {
+  return db.theme.update({
+    where: {
+      id: themeId,
+    },
+    data,
+    select: {
+      id: true,
+      title: true,
+      problemStatement: true,
+      status: true,
+      aiConfidence: true,
     },
   });
 };
