@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: aggroso-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter api exec prisma generate
+    preDeployCommand: pnpm --filter api exec prisma migrate deploy
+    startCommand: pnpm --filter api start
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - apps/api/**
+        - package.json
+        - pnpm-lock.yaml
+        - pnpm-workspace.yaml
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
