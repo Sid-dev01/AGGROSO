@@ -5,6 +5,12 @@ import {
 
 async function reportRoutes(fastify) {
   fastify.post("/generate/:batchId", {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: "1 minute",
+      },
+    },
     schema: {
       tags: ["Reports"],
       summary: "Generate a report for approved batch themes",
@@ -70,6 +76,12 @@ async function reportRoutes(fastify) {
   }, generateReportController);
 
   fastify.get("/:batchId", {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: "1 minute",
+      },
+    },
     schema: {
       tags: ["Reports"],
       summary: "Get latest report for a batch",

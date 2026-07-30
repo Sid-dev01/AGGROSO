@@ -4,6 +4,12 @@ import {
 
 async function uploadRoutes(app) {
   app.post("/", {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: "1 minute",
+      },
+    },
     schema: {
       tags: ["Upload"],
       summary: "Upload feedback CSV",
