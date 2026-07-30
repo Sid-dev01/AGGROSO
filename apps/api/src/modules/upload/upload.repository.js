@@ -1,5 +1,3 @@
-import prisma from "../../config/prisma.js";
-
 export const createUploadBatch = (db, data) => {
   return db.uploadBatch.create({
     data,

@@ -1,9 +1,5 @@
 import { z } from "zod";
 
-export const uploadFileSchema = z.object({
-  mimetype: z.literal("text/csv"),
-});
-
 export const feedbackRowSchema = z.object({
   feedbackText: z.string().min(1),
   source: z.string().min(1),

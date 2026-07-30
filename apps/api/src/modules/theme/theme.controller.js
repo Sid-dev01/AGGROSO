@@ -33,15 +33,9 @@ export const getThemesForBatchController = async (request, reply) => {
 
 export const updateThemeController = async (request, reply) => {
   const { themeId } = themeIdParamsSchema.parse(request.params);
-  const validatedBody = updateThemeSchema.safeParse(request.body);
+  const updates = updateThemeSchema.parse(request.body);
 
-  if (!validatedBody.success) {
-    const error = new Error(validatedBody.error.issues[0]?.message);
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const result = await updateThemeService(themeId, validatedBody.data);
+  const result = await updateThemeService(themeId, updates);
 
   return reply.code(200).send({
     success: true,
