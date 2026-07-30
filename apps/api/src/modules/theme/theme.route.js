@@ -6,6 +6,12 @@ import {
 
 async function themeRoutes(fastify) {
   fastify.get("/:batchId", {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: "1 minute",
+      },
+    },
     schema: {
       tags: ["Themes"],
       summary: "Get themes for a batch",
@@ -48,6 +54,12 @@ async function themeRoutes(fastify) {
   }, getThemesForBatchController);
 
   fastify.patch("/:themeId", {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: "1 minute",
+      },
+    },
     schema: {
       tags: ["Themes"],
       summary: "Review or edit a theme",
@@ -99,6 +111,12 @@ async function themeRoutes(fastify) {
   }, updateThemeController);
 
   fastify.post("/generate/:batchId", {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: "1 minute",
+      },
+    },
     schema: {
       tags: ["Themes"],
       summary: "Generate AI themes for a batch",

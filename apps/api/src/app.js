@@ -1,5 +1,6 @@
 import fastify from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import routes from './routes/index.js';
@@ -21,6 +22,10 @@ await app.register(cors, {
         ? process.env.CORS_ORIGIN.split(",")
         : ["http://localhost:3000"],
     methods: ["GET", "POST", "PATCH", "OPTIONS"],
+});
+
+await app.register(rateLimit, {
+    global: false,
 });
 
 await app.register(multipart, {
@@ -45,6 +50,12 @@ await app.register(swaggerUi, {
 })
 
 app.get("/health", {
+    config: {
+        rateLimit: {
+            max: 20,
+            timeWindow: "1 minute",
+        },
+    },
     schema: {
         tags: ["Health"],
         summary: "Check API and database health",
