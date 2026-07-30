@@ -1,4 +1,6 @@
 import fastify from 'fastify';
+import swagger from '@fastify/swagger';
+import swaggerUi from '@fastify/swagger-ui';
 import routes from './routes/index.js';
 import prisma from './config/prisma.js';
 import multipart from '@fastify/multipart';
@@ -20,7 +22,44 @@ await app.register(multipart, {
     }
 })
 
-app.get("/health", async (request, reply) => {
+await app.register(swagger, {
+    openapi: {
+        info: {
+            title: "Feedback Synthesis Assistant API",
+            description: "Fastify API for feedback upload, AI theme review, and report generation.",
+            version: "1.0.0",
+        },
+    },
+})
+
+await app.register(swaggerUi, {
+    routePrefix: "/documentation",
+})
+
+app.get("/health", {
+    schema: {
+        tags: ["Health"],
+        summary: "Check API and database health",
+        response: {
+            200: {
+                type: "object",
+                properties: {
+                    success: { type: "boolean" },
+                    message: { type: "string" },
+                    database: { type: "string" },
+                },
+            },
+            500: {
+                type: "object",
+                properties: {
+                    success: { type: "boolean" },
+                    message: { type: "string" },
+                    database: { type: "string" },
+                },
+            },
+        },
+    },
+}, async (request, reply) => {
     try {
         await prisma.$queryRaw`SELECT 1`;
 

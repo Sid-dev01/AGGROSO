@@ -32,14 +32,6 @@ export const getAllThemes = async (db) => {
   });
 };
 
-export const findThemeByTitle = async (db, title) => {
-  return db.theme.findUnique({
-    where: {
-      title,
-    },
-  });
-};
-
 export const createTheme = async (db, data) => {
   return db.theme.create({
     data,
